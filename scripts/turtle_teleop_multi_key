@@ -2,17 +2,51 @@
 #linear drive(translation)
 
 from __future__ import print_function
+
 import rospy
+import math
+import tf
 import sys, select, os, time
-from datetime import datetime
-from geometry_msgs.msg import Twist
+
 from pattern import Pattern
+from math import cos, sin, pi,degrees
+from datetime import datetime
+
+from nav_msgs.msg import Odometry
+from std_msgs.msg import Empty
+from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Point, Pose, Quaternion, Twist, Vector3
+from tf.transformations import euler_from_quaternion
+
 if os.name == 'nt':
   import msvcrt, time
 else:
   import tty, termios
 
+def to_positive_angle(th):
+    while True:
+        if th < 0:
+            th += 360
+        if th > 0:
+            ans = th % 360
+            return ans
+            break
 
+def sub_odom():
+    sub = rospy.Subscriber('/odom',Odometry, callback_odom)
+    
+def callback_odom(data):
+    global x,y,th
+    x = data.pose.pose.position.x
+    y = data.pose.pose.position.y
+    q1 = data.pose.pose.orientation.x
+    q2 = data.pose.pose.orientation.y
+    q3 = data.pose.pose.orientation.z
+    q4 = data.pose.pose.orientation.w
+    q = (q1, q2, q3, q4)
+    e = euler_from_quaternion(q)
+    th = degrees(e[2])
+    th = to_positive_angle(th)
 
 def getKey():
     if os.name == 'nt':
@@ -37,6 +71,10 @@ def getKey():
     termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
     return key
 
+def getDistance(x_pos, y_pos):
+    return math.sqrt(x_pos**2 + y_pos**2)
+
+
 class Pattern :
     def __init__(self, initialTime):
         self.rate = 10   # 0.1second
@@ -52,7 +90,6 @@ class Pattern :
         return (val/100.00) * MAXANG
 
     def apply_vel(self, twist, linear, angular, types):
-            
         twist.linear.x = linear if types is "linear" else 0.0
         twist.linear.y = 0.0
         twist.linear.z = 0.0
@@ -123,30 +160,48 @@ Choise what you want to work.
 ----------------------------------------------------
 """
 
-MAXLIN = 0.220
-MAXANG = 2.840
-
 Index = 0
-RATIO= 100.000          # Power Ratio : Manually, you can handle it with the ratio of 40 ~ 100
 LOOP = 10            # Pattern Loop
 STEP = 20           # Step of Ratio Size
-RunningTime = 0.65 
-Type = ('linear', 'angular')
-Spde = (MAXLIN, MAXANG)
+RATIO= 100.000          # Power Ratio : Manually, you can handle it with the ratio of 40 ~ 100
+RunningTime = 0.65
 
+MAXLIN = 0.220
+MAXANG = 2.840 
+Spde = (MAXLIN, MAXANG)
+Type = ('linear', 'angular')
+
+sensor_dist = 0.093
+x, y, th = 0.0, 0.0, 0.0
+(vx, vy, vth) = (0.1, -0.1, 0.1)
+
+rospy.init_node('turtlebot3_teleop')
+rate = rospy.Rate(1.0) # 1Hz
+    
+pub = rospy.Publisher('cmd_vel', Twist, queue_size=3)
+empty_pub = rospy.Publisher('/mobile_base/commands/reset_odometry' ,Empty, queue_size=10) # Reset Odom
+
+odom_pub = rospy.Publisher('odom', Odometry, queue_size=50)
+odom_broadcaster = tf.TransformBroadcaster()
+pub.publish()
 if __name__=="__main__":
     if os.name != 'nt':
         settings = termios.tcgetattr(sys.stdin)
-    
-    twist = Twist()
-    rospy.init_node('turtlebot3_teleop')
-    pub = rospy.Publisher('cmd_vel', Twist, queue_size=3)
-    #rate = rospy.rate(1) #1Hz
 
+    twist = Twist()
+    odom = Odometry()
+    
+    current_time = rospy.Time.now()
+    last_time = rospy.Time.now()
     pattern =  Pattern(rospy.Time.now())
-    while not rospy.is_shutdown(): 
+    sub_odom()
+    while not rospy.is_shutdown():         
+        print("x:%.2f y:%.2f heading:%.2f"%(x, y, th))
+        current_time = rospy.Time.now()
+
         key = getKey()
         choice = input(msg)
+
         if (key == '\x03'):
 			  break
         if choice is 1:
@@ -196,5 +251,11 @@ if __name__=="__main__":
 
 	    if os.name != 'nt':
 		    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
+        
+       
+        dist = (current_time - last_time).to_sec() # floating Point
+        last_time = current_time
 
+        rate.sleep()
+        
 
