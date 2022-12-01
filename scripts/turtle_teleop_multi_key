@@ -8,20 +8,12 @@ import math
 import tf
 import sys, select, os, time
 
-from pattern import Pattern
-from math import cos, sin, pi,degrees
-from datetime import datetime
+from math import cos, sin, degrees, sqrt
 
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Empty
-from geometry_msgs.msg import Twist
+from std_msgs.msg import String
 from geometry_msgs.msg import Point, Pose, Quaternion, Twist, Vector3
 from tf.transformations import euler_from_quaternion
-
-if os.name == 'nt':
-  import msvcrt, time
-else:
-  import tty, termios
 
 def to_positive_angle(th):
     while True:
@@ -32,231 +24,101 @@ def to_positive_angle(th):
             return ans
             break
 
+def Distance2D(pos_x, pos_y):
+    dist = sqrt((pos_x**2)+(pos_y**2))
+    return dist
+#
+# def pub_cmdv(): # Write turtlebot velocity
+#      = rospy.Publisher('/counter', Twist, queue_size=3)
+
+def pub_odom():
+    pub_odom = rospy.Publisher('cmd_vel',Twist, queue_size=3)
+
 def sub_odom():
-    sub = rospy.Subscriber('/odom',Odometry, callback_odom)
+    odom = rospy.Subscriber('/odom',Odometry, callback_odom)
+
+def sub_chat():
+    chat =  rospy.Subscriber('chatter', String, callback_chat)
+
+def callback_init_odom(data):
+    global init_odom_x, init_odom_y
+    init_odom_x = data.pose.pose.position.x
+    init_odom_y = data.pose.pose.position.y
 
 def callback_odom(data):
-    global x,y,th
-    x = data.pose.pose.position.x
-    y = data.pose.pose.position.y
+    global odom_x, odom_y, odom_z
+    odom_x = data.pose.pose.position.x
+    odom_y = data.pose.pose.position.y
+
     q1 = data.pose.pose.orientation.x
     q2 = data.pose.pose.orientation.y
     q3 = data.pose.pose.orientation.z
     q4 = data.pose.pose.orientation.w
     q = (q1, q2, q3, q4)
+
     e = euler_from_quaternion(q)
-    th = degrees(e[2])
-    th = to_positive_angle(th)
 
-def getKey():
-    if os.name == 'nt':
-        timeout = 0.1
-        startTime = time.time()
-        while(1):
-            if msvcrt.kbhit():
-                if sys.version_info[0] >= 3:
-                    return msvcrt.getch().decode()
-                else:
-                    return msvcrt.getch()
-            elif time.time() - startTime > timeout:
-                return ''
+    odom_z = degrees(e[2])
+    odom_z = to_positive_angle(odom_z)
 
-    tty.setraw(sys.stdin.fileno())
-    rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
-    if rlist:
-        key = sys.stdin.read(1)
-    else:
-        key = ''
+def callback_chat(data):
+    global opt_x, opt_y, opt_dist, opt_dist2
+    opt = data.data.split("|")
+    opt_x = float(int(opt[1])*0.01)#float(opt[1])
+    opt_y = float(int(opt[2])*0.01)#float(opt[2])
+    opt_dist = float(opt[4])*0.01#float(opt[4])
 
-    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
-    return key
+    # print(opt)
+    # print("[OPT] X : {:3d} Y : {:3d} D : {:3f}".format(opt_x, opt_y, opt_dist))
 
-def getDistance(x_pos, y_pos):
-    return math.sqrt(x_pos**2 + y_pos**2)
+#  git clone https://github.com/ROBOTIS-GIT/turtlebot3.git
+#  several problems Solving process.
 
-
-class Pattern :
-    def __init__(self, initialTime):
-        self.rate = 10   # 0.1second
-        self.ready = True
-
-        self.currentTime = rospy.Time.now()
-        self.Time = self.currentTime - initialTime
-        self.msg = """\033[37m
-        [ICSL Turtlebot3 Velocity Control]-----------------
-        Choise what you want to work.
-          1. VELOCITY
-          2. TYPE - LINEAR
-          3. TYPE - ANGULAR
-          4. MOVE
-          5. EXIT
-        ----------------------------------------------------
-        """
-    def linear(self, val):  # ratio: 0 ~ 100
-        return (val/100.00) * MAXLIN
-
-    def angular(self, val): # ratio: 0 ~ 100
-        return (val/100.00) * MAXANG
-
-    def apply_vel(self, twist, linear, angular, types):
-        twist.linear.x = linear if types is "linear" else 0.0
-        twist.linear.y = 0.0
-        twist.linear.z = 0.0
-
-        twist.angular.x = 0.0
-        twist.angular.y = 0.0
-        twist.angular.z = angular if types is "angular" else 0.0
-
-        pub.publish(twist)
-
-    def speed_set(self, twisted, ratio, STEP, typed):
-        self.ratio = ratio
-        self.type = typed
-        subratio = int(abs(self.ratio)/30)
-
-        # 00 ~ 29  -> STOP
-        if subratio is 0:
-            for sub in range(5, 0, -1) :
-                self.apply_vel(twisted, self.linear(0),
-                                        self.angular(0), self.type)
-                rospy.Rate(self.rate).sleep()
-            print(datetime.now().strftime("%H:%M:%S.%f")," | ","LINEAR VELOCITY | %f | ANGULAR VELOCITY | %f |---STOP---" %(twist.linear.x, twist.angular.z))
-
-         # 30 ~ 59
-        elif subratio is 1:
-            for sub in range(subratio+1, 0, -1) :
-                self.apply_vel(twisted, self.linear(self.ratio-sub*STEP),
-                                        self.angular(self.ratio-sub*STEP), self.type)
-                print(datetime.now().strftime("%H:%M:%S.%f")," | ","LINEAR VELOCITY | %f | ANGULAR VELOCITY | %f |" %(twist.linear.x, twist.angular.z))
-                rospy.Rate(self.rate).sleep()
-
-         # 60 ~ 89
-        elif subratio is 2:
-            for sub in range(subratio+1, -1, -1) :
-                self.apply_vel(twisted, self.linear(self.ratio-sub*STEP),
-                                        self.angular(self.ratio-sub*STEP), self.type)
-                print(datetime.now().strftime("%H:%M:%S.%f")," | ","LINEAR VELOCITY | %f | ANGULAR VELOCITY | %f |" %(twist.linear.x, twist.angular.z))
-                rospy.Rate(self.rate).sleep()
-
-
-         # 90 ~ 100
-        elif subratio is 3:
-            for sub in range(subratio, -1, -1) :
-                self.apply_vel(twisted, self.linear(self.ratio-sub*STEP),
-                                        self.angular(self.ratio-sub*STEP), self.type)
-                print(datetime.now().strftime("%H:%M:%S.%f")," | ","LINEAR VELOCITY | %f | ANGULAR VELOCITY | %f | " %(twist.linear.x, twist.angular.z))
-                rospy.Rate(self.rate).sleep()
-
-
-        # Over 100 -> STOP
-        else:
-            time.strftime('%c')
-            for sub in range(5, 0, -1) :
-                self.apply_vel(twisted, self.linear(0),
-                                        self.angular(0), self.type)
-                rospy.Rate(self.rate).sleep()
-            print(datetime.now().strftime("%H:%M:%S.%f")," | ","LINEAR VELOCITY | %f | ANGULAR VELOCITY | %f | ---STOP---" %(twist.linear.x, twist.angular.z))
-
-    def move(self):
-        key = getKey()
-        choice = input(self.msg)
-
-        if (key == '\x03'):
-			  break
-        if choice is 1:
-            RATIO = input("Write the ratio of velocity (0-100) : ")
-            print('\033[32m',' >>> Successfully applied.', RATIO)
-        elif choice is 2: # linear change
-            Index = 0
-            print('\033[32m >>> Successfully applied : ',Type[Index],' -> Linear')
-        elif choice is 3: # angular change
-            Index = 1
-            print('\033[32m >>> Successfully applied : ',Type[Index],' -> Angular')
-        elif choice is 4:
-            if Index is 0:
-                print('\033[34m','>>> MOVE TYPE : ', Type[Index])
-                print('\033[34m','>>> MOVE SPDE : ', Spde[Index] * RATIO/100, "m/s")
-
-                dist = input("Move Distance [0-10m]: ")
-                RunningTime = abs(dist) / (Spde[Index] *  RATIO/100)
-                print(RunningTime)
-                if dist > 0 :
-                    pattern.speed_set(twist, RATIO, STEP, Type[Index]) # Direct move
-                    rospy.sleep(RunningTime)
-                    pattern.speed_set(twist, 0, STEP, Type[Index])
-                else:
-                    pattern.speed_set(twist, -RATIO, -STEP, Type[Index]) # Direct move
-                    rospy.sleep(RunningTime)
-                    pattern.speed_set(twist, 0, STEP, Type[Index])
-            elif Index is 1:
-                print('\033[34m',' >>> MOVE TYPE : ', Type[Index])
-                print('\033[34m',' >>> MOVE SPDE : ', RATIO/100 * Spde[Index], "deg/s")
-
-                dist = input("Move Angle [0-360deg]: ")
-                RunningTime = (abs(dist) * 10/360) / (Spde[Index] *  RATIO/100)
-                if dist > 0 :
-                    pattern.speed_set(twist, RATIO, STEP, Type[Index]) # Direct move
-                    rospy.sleep(RunningTime)
-                    pattern.speed_set(twist, 0, STEP, Type[Index])
-                else:
-                    pattern.speed_set(twist, -RATIO, -STEP, Type[Index]) # Direct move
-                    rospy.sleep(RunningTime)
-                    pattern.speed_set(twist, 0, STEP, Type[Index])
-
-        elif choice is 5:
-            break
-        else:
-            print("\033[31m Wrong Number!")
-
-
-Index = 0
-LOOP = 10            # Pattern Loop
-STEP = 20           # Step of Ratio Size
-RATIO= 100.000          # Power Ratio : Manually, you can handle it with the ratio of 40 ~ 100
-RunningTime = 0.65
-
-MAXLIN = 0.220
-MAXANG = 2.840
-Spde = (MAXLIN, MAXANG)
-Type = ('linear', 'angular')
-
-sensor_dist = 0.093
-x, y, th = 0.0, 0.0, 0.0
-(vx, vy, vth) = (0.1, -0.1, 0.1)
-
-rospy.init_node('turtlebot3_teleop')
-rate = rospy.Rate(1.0) # 1Hz
-
-pub = rospy.Publisher('cmd_vel', Twist, queue_size=3)
-empty_pub = rospy.Publisher('/mobile_base/commands/reset_odometry' ,Empty, queue_size=10) # Reset Odom
-
-odom_pub = rospy.Publisher('odom', Odometry, queue_size=50)
-odom_broadcaster = tf.TransformBroadcaster()
-
-pub.publish()
+dist = 0
+cur_x, cur_y = (0.0, 0.0)
+opt_x, opt_y, opt_dist = (0.1, 0.1, 0.1)
+odom_x, odom_y, odom_z, odom_dist = (0.1, 0.1, 0.1, 0)
+gap_x, gap_y, gap_z = (0, 0, 0)
+local_x, local_y, local_z = (0, 0, 0)
 
 if __name__=="__main__":
-    if os.name != 'nt':
-        settings = termios.tcgetattr(sys.stdin)
+    rospy.init_node('turtlebot3_teleop', anonymous=True)
+    rate = rospy.Rate(10)
+
+    currentTime = rospy.Time.now()
+    lastTime = rospy.Time.now()
+
+    pub_odom()
+    sub_odom()
+    sub_chat()
+
+    odom = rospy.Subscriber('/odom',Odometry, callback_init_odom)
 
     twist = Twist()
-    odom = Odometry()
+    twist.linear.x = 0.0; twist.linear.y = 0.0; twist.linear.z = 0.0
+    twist.angular.x = 0.0; twist.angular.y = 0.0; twist.angular.z = 0.0
+    pub_odom.publish(twist)
+    # current twist value
 
-    current_time = rospy.Time.now()
-    last_time = rospy.Time.now()
-    pattern =  Pattern(rospy.Time.now())
-    sub_odom()
     while not rospy.is_shutdown():
-        print("x:%.2f y:%.2f heading:%.2f"%(x, y, th))
-        current_time = rospy.Time.now()
+        currentTime = rospy.Time.now()
 
+        local_y = float(opt_x + sin(opt_y) * dist)
+        local_x = float(opt_x + cos(opt_y) * dist)
+        local_z = float(opt_y + dist / 0.093)
 
+        gap_x = float((odom_x - local_x)/odom_x)*100
+        gap_y = float((odom_y - local_y)/odom_y)*100
+        gap_z = float((odom_z - local_z)/odom_z)*100
 
-	    if os.name != 'nt':
-		    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
+        odom_dist = Distance2D(odom_x, odom_y)
 
+        print("-----------------------------------------------")
+        print("OPT|| X : {:3f} Y : {:3f} dist : {:3f}".format(opt_x, opt_y, opt_dist))
+        print("ODM|| X : {:3f} Y : {:3f} Z : {:3f} dist : {:3f}".format(odom_x, odom_y, odom_z, odom_dist))
+        print("LCL|| X : {:3f} Y : {:3f} Z : {:3f}".format(local_x, local_y, local_z))
+        print("GAP|| X : {:3f}% Y : {:3f}% Z : {:3f}%".format(gap_x, gap_y, gap_z))
 
-        dist = (current_time - last_time).to_sec() # floating Point
-        last_time = current_time
-
+        dist = (currentTime - lastTime).to_sec()
+        lastTime = rospy.Time.now()
         rate.sleep()
