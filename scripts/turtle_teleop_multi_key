@@ -232,7 +232,9 @@ empty_pub = rospy.Publisher('/mobile_base/commands/reset_odometry' ,Empty, queue
 
 odom_pub = rospy.Publisher('odom', Odometry, queue_size=50)
 odom_broadcaster = tf.TransformBroadcaster()
+
 pub.publish()
+
 if __name__=="__main__":
     if os.name != 'nt':
         settings = termios.tcgetattr(sys.stdin)
