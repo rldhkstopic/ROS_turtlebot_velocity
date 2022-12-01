@@ -34,7 +34,7 @@ def to_positive_angle(th):
 
 def sub_odom():
     sub = rospy.Subscriber('/odom',Odometry, callback_odom)
-    
+
 def callback_odom(data):
     global x,y,th
     x = data.pose.pose.position.x
@@ -82,11 +82,20 @@ class Pattern :
 
         self.currentTime = rospy.Time.now()
         self.Time = self.currentTime - initialTime
-
+        self.msg = """\033[37m
+        [ICSL Turtlebot3 Velocity Control]-----------------
+        Choise what you want to work.
+          1. VELOCITY
+          2. TYPE - LINEAR
+          3. TYPE - ANGULAR
+          4. MOVE
+          5. EXIT
+        ----------------------------------------------------
+        """
     def linear(self, val):  # ratio: 0 ~ 100
         return (val/100.00) * MAXLIN
-    
-    def angular(self, val): # ratio: 0 ~ 100 
+
+    def angular(self, val): # ratio: 0 ~ 100
         return (val/100.00) * MAXANG
 
     def apply_vel(self, twist, linear, angular, types):
@@ -97,7 +106,7 @@ class Pattern :
         twist.angular.x = 0.0
         twist.angular.y = 0.0
         twist.angular.z = angular if types is "angular" else 0.0
-        
+
         pub.publish(twist)
 
     def speed_set(self, twisted, ratio, STEP, typed):
@@ -106,7 +115,7 @@ class Pattern :
         subratio = int(abs(self.ratio)/30)
 
         # 00 ~ 29  -> STOP
-        if subratio is 0: 
+        if subratio is 0:
             for sub in range(5, 0, -1) :
                 self.apply_vel(twisted, self.linear(0),
                                         self.angular(0), self.type)
@@ -114,7 +123,7 @@ class Pattern :
             print(datetime.now().strftime("%H:%M:%S.%f")," | ","LINEAR VELOCITY | %f | ANGULAR VELOCITY | %f |---STOP---" %(twist.linear.x, twist.angular.z))
 
          # 30 ~ 59
-        elif subratio is 1: 
+        elif subratio is 1:
             for sub in range(subratio+1, 0, -1) :
                 self.apply_vel(twisted, self.linear(self.ratio-sub*STEP),
                                         self.angular(self.ratio-sub*STEP), self.type)
@@ -122,7 +131,7 @@ class Pattern :
                 rospy.Rate(self.rate).sleep()
 
          # 60 ~ 89
-        elif subratio is 2: 
+        elif subratio is 2:
             for sub in range(subratio+1, -1, -1) :
                 self.apply_vel(twisted, self.linear(self.ratio-sub*STEP),
                                         self.angular(self.ratio-sub*STEP), self.type)
@@ -131,7 +140,7 @@ class Pattern :
 
 
          # 90 ~ 100
-        elif subratio is 3: 
+        elif subratio is 3:
             for sub in range(subratio, -1, -1) :
                 self.apply_vel(twisted, self.linear(self.ratio-sub*STEP),
                                         self.angular(self.ratio-sub*STEP), self.type)
@@ -140,7 +149,7 @@ class Pattern :
 
 
         # Over 100 -> STOP
-        else: 
+        else:
             time.strftime('%c')
             for sub in range(5, 0, -1) :
                 self.apply_vel(twisted, self.linear(0),
@@ -148,17 +157,57 @@ class Pattern :
                 rospy.Rate(self.rate).sleep()
             print(datetime.now().strftime("%H:%M:%S.%f")," | ","LINEAR VELOCITY | %f | ANGULAR VELOCITY | %f | ---STOP---" %(twist.linear.x, twist.angular.z))
 
+    def move(self):
+        key = getKey()
+        choice = input(self.msg)
 
-msg = """\033[37m
-[ICSL Turtlebot3 Velocity Control]-----------------
-Choise what you want to work.               
-  1. VELOCITY
-  2. TYPE - LINEAR
-  3. TYPE - ANGULAR
-  4. MOVE
-  5. EXIT
-----------------------------------------------------
-"""
+        if (key == '\x03'):
+			  break
+        if choice is 1:
+            RATIO = input("Write the ratio of velocity (0-100) : ")
+            print('\033[32m',' >>> Successfully applied.', RATIO)
+        elif choice is 2: # linear change
+            Index = 0
+            print('\033[32m >>> Successfully applied : ',Type[Index],' -> Linear')
+        elif choice is 3: # angular change
+            Index = 1
+            print('\033[32m >>> Successfully applied : ',Type[Index],' -> Angular')
+        elif choice is 4:
+            if Index is 0:
+                print('\033[34m','>>> MOVE TYPE : ', Type[Index])
+                print('\033[34m','>>> MOVE SPDE : ', Spde[Index] * RATIO/100, "m/s")
+
+                dist = input("Move Distance [0-10m]: ")
+                RunningTime = abs(dist) / (Spde[Index] *  RATIO/100)
+                print(RunningTime)
+                if dist > 0 :
+                    pattern.speed_set(twist, RATIO, STEP, Type[Index]) # Direct move
+                    rospy.sleep(RunningTime)
+                    pattern.speed_set(twist, 0, STEP, Type[Index])
+                else:
+                    pattern.speed_set(twist, -RATIO, -STEP, Type[Index]) # Direct move
+                    rospy.sleep(RunningTime)
+                    pattern.speed_set(twist, 0, STEP, Type[Index])
+            elif Index is 1:
+                print('\033[34m',' >>> MOVE TYPE : ', Type[Index])
+                print('\033[34m',' >>> MOVE SPDE : ', RATIO/100 * Spde[Index], "deg/s")
+
+                dist = input("Move Angle [0-360deg]: ")
+                RunningTime = (abs(dist) * 10/360) / (Spde[Index] *  RATIO/100)
+                if dist > 0 :
+                    pattern.speed_set(twist, RATIO, STEP, Type[Index]) # Direct move
+                    rospy.sleep(RunningTime)
+                    pattern.speed_set(twist, 0, STEP, Type[Index])
+                else:
+                    pattern.speed_set(twist, -RATIO, -STEP, Type[Index]) # Direct move
+                    rospy.sleep(RunningTime)
+                    pattern.speed_set(twist, 0, STEP, Type[Index])
+
+        elif choice is 5:
+            break
+        else:
+            print("\033[31m Wrong Number!")
+
 
 Index = 0
 LOOP = 10            # Pattern Loop
@@ -167,7 +216,7 @@ RATIO= 100.000          # Power Ratio : Manually, you can handle it with the rat
 RunningTime = 0.65
 
 MAXLIN = 0.220
-MAXANG = 2.840 
+MAXANG = 2.840
 Spde = (MAXLIN, MAXANG)
 Type = ('linear', 'angular')
 
@@ -177,7 +226,7 @@ x, y, th = 0.0, 0.0, 0.0
 
 rospy.init_node('turtlebot3_teleop')
 rate = rospy.Rate(1.0) # 1Hz
-    
+
 pub = rospy.Publisher('cmd_vel', Twist, queue_size=3)
 empty_pub = rospy.Publisher('/mobile_base/commands/reset_odometry' ,Empty, queue_size=10) # Reset Odom
 
@@ -190,72 +239,22 @@ if __name__=="__main__":
 
     twist = Twist()
     odom = Odometry()
-    
+
     current_time = rospy.Time.now()
     last_time = rospy.Time.now()
     pattern =  Pattern(rospy.Time.now())
     sub_odom()
-    while not rospy.is_shutdown():         
+    while not rospy.is_shutdown():
         print("x:%.2f y:%.2f heading:%.2f"%(x, y, th))
         current_time = rospy.Time.now()
 
-        key = getKey()
-        choice = input(msg)
 
-        if (key == '\x03'):
-			  break
-        if choice is 1:
-            RATIO = input("Write the ratio of velocity (0-100) : ")
-            print('\033[32m',' >>> Successfully applied.', RATIO)
-        elif choice is 2: # linear change
-            Index = 0
-            print('\033[32m >>> Successfully applied : ',Type[Index],' -> Linear')
-        elif choice is 3: # angular change
-            Index = 1
-            print('\033[32m >>> Successfully applied : ',Type[Index],' -> Angular')        
-        elif choice is 4:
-            if Index is 0:
-                print('\033[34m','>>> MOVE TYPE : ', Type[Index])
-                print('\033[34m','>>> MOVE SPDE : ', Spde[Index] * RATIO/100, "m/s")
-            
-                dist = input("Move Distance [0-10m]: ")
-                RunningTime = abs(dist) / (Spde[Index] *  RATIO/100)
-                print(RunningTime)
-                if dist > 0 :                     
-                    pattern.speed_set(twist, RATIO, STEP, Type[Index]) # Direct move
-                    rospy.sleep(RunningTime)
-                    pattern.speed_set(twist, 0, STEP, Type[Index])
-                else:
-                    pattern.speed_set(twist, -RATIO, -STEP, Type[Index]) # Direct move
-                    rospy.sleep(RunningTime)
-                    pattern.speed_set(twist, 0, STEP, Type[Index])
-            elif Index is 1:
-                print('\033[34m',' >>> MOVE TYPE : ', Type[Index])
-                print('\033[34m',' >>> MOVE SPDE : ', RATIO/100 * Spde[Index], "deg/s")
-            
-                dist = input("Move Angle [0-360deg]: ")
-                RunningTime = (abs(dist) * 10/360) / (Spde[Index] *  RATIO/100)
-                if dist > 0 :                     
-                    pattern.speed_set(twist, RATIO, STEP, Type[Index]) # Direct move
-                    rospy.sleep(RunningTime)
-                    pattern.speed_set(twist, 0, STEP, Type[Index])
-                else:
-                    pattern.speed_set(twist, -RATIO, -STEP, Type[Index]) # Direct move
-                    rospy.sleep(RunningTime)
-                    pattern.speed_set(twist, 0, STEP, Type[Index])          
-
-        elif choice is 5:
-            break
-        else:
-            print("\033[31m Wrong Number!")
 
 	    if os.name != 'nt':
 		    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
-        
-       
+
+
         dist = (current_time - last_time).to_sec() # floating Point
         last_time = current_time
 
         rate.sleep()
-        
-
