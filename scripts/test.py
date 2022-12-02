@@ -69,7 +69,7 @@ def listner():
 
 cur_x, cur_y = (0.0, 0.0)
 if __name__=="__main__":
-    currentTime = rospy.Time.now()
+    currentTimaae = rospy.Time.now()
     lastTime = rospy.Time.now()
 
     sub_odom()
