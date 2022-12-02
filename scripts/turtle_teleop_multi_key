@@ -83,11 +83,10 @@ def callback_chat(data):
 #  several problems Solving process.
 
 dist = 0
-cur_x, cur_y = (0.0, 0.0)
 opt_x, opt_y, opt_dist = (0.1, 0.1, 0.1)
 odom_x, odom_y, odom_z, odom_dist = (0.1, 0.1, 0.1, 0)
 gap_x, gap_y, gap_z = (0, 0, 0)
-local_x, local_y, local_z = (0, 0, 0)
+local_x, local_y, local_yaw = (0, 0, 0)
 
 if __name__=="__main__":
     rospy.init_node('turtlebot3_teleop', anonymous=True)
@@ -111,7 +110,7 @@ if __name__=="__main__":
         # odom_x -= init_odom_x
         # odom_y -= init_odom_y
 
-        local_x = float(local_x + cos(local_yaw) * dist)
+        local_x = float(local_x + cos(local_yaw) * odom_dist)
         local_y = float(local_x + sin(local_yaw) * dist)
         local_yaw = float(local_y + dist / 0.093)
 
