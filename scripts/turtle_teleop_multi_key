@@ -33,7 +33,7 @@ def pub_odom():
     twist = Twist()
     twist.linear.x = 0.0; twist.linear.y = 0.0; twist.linear.z = 0.0
     twist.angular.x = 0.0; twist.angular.y = 0.0; twist.angular.z = 0.0
-    
+
     pub_odom.publish(twist)
 
 def sub_odom():
@@ -48,7 +48,8 @@ def callback_init_odom(data):
     init_odom_y = data.pose.pose.position.y
 
 def callback_odom(data):
-    global odom_x, odom_y, odom_z, odom_dist
+    global odom_x, odom_y, odom_z
+    global odom_x_dist, odom_y_dist, odom_z_dist
 
     q1 = data.pose.pose.orientation.x
     q2 = data.pose.pose.orientation.y
@@ -57,7 +58,7 @@ def callback_odom(data):
     q = (q1, q2, q3, q4)
 
     e = euler_from_quaternion(q)
-    
+
     odom_x = data.pose.pose.position.x
     odom_y = data.pose.pose.position.y
     odom_z = to_positive_angle(degrees(e[2]))
@@ -65,7 +66,6 @@ def callback_odom(data):
     odom_x_dist = abs(odom_x-pre_odom_x)
     odom_y_dist = abs(odom_y-pre_odom_y)
     odom_z_dist = abs(odom_z-pre_odom_z)
-    odom_dist = (odom_x_dist, odom_y_dist, odom_z_dist)
 
     pre_odom_x, pre_odom_y, pre_odom_z = (odom_x, odom_y, odom_z)
 
@@ -84,7 +84,9 @@ def callback_chat(data):
 
 dist = 0
 opt_x, opt_y, opt_dist = (0.1, 0.1, 0.1)
-odom_x, odom_y, odom_z, odom_dist = (0.1, 0.1, 0.1, 0)
+odom_x, odom_y, odom_z = (0.0, 0.0, 0.0)
+odom_x_dist, odom_y_dist, odom_z_dist = (0.0, 0.0, 0.0)
+
 gap_x, gap_y, gap_z = (0, 0, 0)
 local_x, local_y, local_yaw = (0, 0, 0)
 
@@ -110,9 +112,9 @@ if __name__=="__main__":
         # odom_x -= init_odom_x
         # odom_y -= init_odom_y
 
-        local_x = float(local_x + cos(local_yaw) * odom_dist[0])
-        local_y = float(local_x + sin(local_yaw) * odom_dist[0])
-        local_yaw = float(local_y + odom_dist[1] / 0.093)
+        local_x = float(local_x + cos(local_yaw) * odom_x_dist * 0.031)
+        local_y = float(local_x + sin(local_yaw) * odom_x_dist * 0.031)
+        local_yaw = float(local_y + odom_y_dist / 0.093)
 
         gap_x = float(odom_x - local_x)#/odom_x)*100
         gap_y = float(odom_y - local_y)#/odom_y)*100
@@ -121,10 +123,10 @@ if __name__=="__main__":
         odom_dist = Distance2D(odom_x, odom_y)
 
         print("-----------------------------------------------")
-        print("OPT|| X : {:.3f}  Y : {:.3f}  dist : {:.3f}".format(opt_x, opt_y, opt_dist))
-        print("ODM|| X : {:.3f}  Y : {:.3f}  Z : {:.3f} dist : {:3f}".format(odom_x, odom_y, odom_z, odom_dist))
-        print("LCL|| X : {:.3f}  Y : {:.3f}  Z : {:.3f}".format(local_x, local_y, local_yaw))
-        print("GAP|| X : {:.3f}% Y : {:.3f}% Z : {:.3f}%".format(gap_x, gap_y, gap_z))
+        print("OPT|| X : {:.6f}  Y : {:.6f}  dist : {:.6f}".format(opt_x, opt_y, opt_dist))
+        print("ODM|| X : {:.6f}  Y : {:.6f}  Z : {:.6f} dist : {:6f}".format(odom_x, odom_y, odom_z, odom_dist))
+        print("LCL|| X : {:.6f}  Y : {:.6f}  Z : {:.6f}".format(local_x, local_y, local_yaw))
+        print("GAP|| X : {:.6f}% Y : {:.6f}% Z : {:.6f}%".format(gap_x, gap_y, gap_z))
 
         dist = (currentTime - lastTime).to_sec()
         lastTime = rospy.Time.now()
