@@ -110,21 +110,21 @@ if __name__=="__main__":
         # odom_x -= init_odom_x
         # odom_y -= init_odom_y
 
-        local_x = float(local_x + cos(local_yaw) * odom_dist)
-        local_y = float(local_x + sin(local_yaw) * dist)
-        local_yaw = float(local_y + dist / 0.093)
+        local_x = float(local_x + cos(local_yaw) * odom_dist[0])
+        local_y = float(local_x + sin(local_yaw) * odom_dist[0])
+        local_yaw = float(local_y + odom_dist[1] / 0.093)
 
-        gap_x = float((odom_x - local_x)/odom_x)*100
-        gap_y = float((odom_y - local_y)/odom_y)*100
-        gap_z = float((odom_z - local_yaw)/odom_z)*100
+        gap_x = float(odom_x - local_x)#/odom_x)*100
+        gap_y = float(odom_y - local_y)#/odom_y)*100
+        gap_z = float(odom_z - local_yaw)#/odom_z)*100
 
         odom_dist = Distance2D(odom_x, odom_y)
 
         print("-----------------------------------------------")
-        print("OPT|| X : {:3f} Y : {:3f} dist : {:3f}".format(opt_x, opt_y, opt_dist))
-        print("ODM|| X : {:3f} Y : {:3f} Z : {:3f} dist : {:3f}".format(odom_x, odom_y, odom_z, odom_dist))
-        print("LCL|| X : {:3f} Y : {:3f} Z : {:3f}".format(local_x, local_y, local_yaw))
-        print("GAP|| X : {:3f}% Y : {:3f}% Z : {:3f}%".format(gap_x, gap_y, gap_z))
+        print("OPT|| X : {:.3f}  Y : {:.3f}  dist : {:.3f}".format(opt_x, opt_y, opt_dist))
+        print("ODM|| X : {:.3f}  Y : {:.3f}  Z : {:.3f} dist : {:3f}".format(odom_x, odom_y, odom_z, odom_dist))
+        print("LCL|| X : {:.3f}  Y : {:.3f}  Z : {:.3f}".format(local_x, local_y, local_yaw))
+        print("GAP|| X : {:.3f}% Y : {:.3f}% Z : {:.3f}%".format(gap_x, gap_y, gap_z))
 
         dist = (currentTime - lastTime).to_sec()
         lastTime = rospy.Time.now()
