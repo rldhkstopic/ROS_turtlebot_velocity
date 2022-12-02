@@ -15,7 +15,7 @@ from std_msgs.msg import String
 from geometry_msgs.msg import Point, Pose, Quaternion, Twist, Vector3
 from tf.transformations import euler_from_quaternion
 
-DISTANCE_RATIO 0.031
+DISTANCE_RATIO = 0.031
 
 def to_positive_angle(th):
     while True:
@@ -105,7 +105,7 @@ if __name__=="__main__":
 
     subodom = sub_odom()
 
-    pub_odom()    
+    pub_odom()
     while not rospy.is_shutdown():
         sub_odom()
         sub_chat()
@@ -117,7 +117,7 @@ if __name__=="__main__":
             flag = True
 
         currentTime = rospy.Time.now()
-        
+
         local_x = float(local_x + cos(local_yaw) * odom_x_dist * DISTANCE_RATIO)
         local_y = float(local_x + sin(local_yaw) * odom_x_dist * DISTANCE_RATIO)
         local_yaw = float(local_y + odom_y_dist / 0.093)
