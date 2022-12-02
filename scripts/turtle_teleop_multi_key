@@ -43,10 +43,7 @@ def callback_init_odom(data):
     init_odom_y = data.pose.pose.position.y
 
 def callback_odom(data):
-    global odom_x, odom_y, odom_z, pre_odom_x, 
-
-    odom_x = data.pose.pose.position.x
-    odom_y = data.pose.pose.position.y
+    global odom_x, odom_y, odom_z, odom_dist
 
     q1 = data.pose.pose.orientation.x
     q2 = data.pose.pose.orientation.y
@@ -55,11 +52,17 @@ def callback_odom(data):
     q = (q1, q2, q3, q4)
 
     e = euler_from_quaternion(q)
+    
+    odom_x = data.pose.pose.position.x
+    odom_y = data.pose.pose.position.y
+    odom_z = to_positive_angle(degrees(e[2]))
 
-    odom_z = degrees(e[2])
-    odom_z = to_positive_angle(odom_z)
+    odom_x_dist = abs(odom_x-pre_odom_x)
+    odom_y_dist = abs(odom_y-pre_odom_y)
+    odom_z_dist = abs(odom_z-pre_odom_z)
+    odom_dist = (odom_x_dist, odom_y_dist, odom_z_dist)
 
-    pre_odom_x, pre_odom_y, pre_odom_z = (odom_X, odom_y, odom_z)
+    pre_odom_x, pre_odom_y, pre_odom_z = (odom_x, odom_y, odom_z)
 
 def callback_chat(data):
     global opt_x, opt_y, opt_dist, opt_dist2
