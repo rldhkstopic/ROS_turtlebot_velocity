@@ -30,6 +30,11 @@ def Distance2D(pos_x, pos_y):
 
 def pub_odom():
     pub_odom = rospy.Publisher('cmd_vel',Twist, queue_size=3)
+    twist = Twist()
+    twist.linear.x = 0.0; twist.linear.y = 0.0; twist.linear.z = 0.0
+    twist.angular.x = 0.0; twist.angular.y = 0.0; twist.angular.z = 0.0
+    
+    pub_odom.publish(twist)
 
 def sub_odom():
     odom = rospy.Subscriber('/odom',Odometry, callback_odom)
@@ -97,10 +102,6 @@ if __name__=="__main__":
 
     # rospy.Subscriber('/odom',Odometry, callback_init_odom)
 
-    twist = Twist()
-    twist.linear.x = 0.0; twist.linear.y = 0.0; twist.linear.z = 0.0
-    twist.angular.x = 0.0; twist.angular.y = 0.0; twist.angular.z = 0.0
-    pub_odom.publish(twist)
     # current twist value
 
 
