@@ -3,9 +3,9 @@
 
 from __future__ import print_function
 
+# import tf
 import rospy
 import math
-import tf
 import sys, select, os, time
 
 from math import cos, sin, degrees, sqrt
@@ -92,7 +92,7 @@ if __name__=="__main__":
     sub_odom()
     sub_chat()
 
-    odom = rospy.Subscriber('/odom',Odometry, callback_init_odom)
+    # rospy.Subscriber('/odom',Odometry, callback_init_odom)
 
     twist = Twist()
     twist.linear.x = 0.0; twist.linear.y = 0.0; twist.linear.z = 0.0
@@ -100,11 +100,15 @@ if __name__=="__main__":
     pub_odom.publish(twist)
     # current twist value
 
+
     while not rospy.is_shutdown():
         currentTime = rospy.Time.now()
 
-        local_y = float(opt_x + sin(opt_y) * dist)
+        odom_x -= init_odom_x
+        odom_y -= init_odom_y
+
         local_x = float(opt_x + cos(opt_y) * dist)
+        local_y = float(opt_x + sin(opt_y) * dist)
         local_z = float(opt_y + dist / 0.093)
 
         gap_x = float((odom_x - local_x)/odom_x)*100
