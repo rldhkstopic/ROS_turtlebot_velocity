@@ -44,8 +44,6 @@ def sub_chat():
 
 def callback_init_odom(data):
     global init_odom_x, init_odom_y
-    init_odom_x = data.pose.pose.position.x
-    init_odom_y = data.pose.pose.position.y
 
 def callback_odom(data):
     global odom_x, odom_y, odom_z
@@ -97,16 +95,15 @@ if __name__=="__main__":
     currentTime = rospy.Time.now()
     lastTime = rospy.Time.now()
 
-    pub_odom()
-    sub_odom()
-    sub_chat()
+    subodom = sub_odom()
+    init_odom_x = subodom.pose.pose.position.x
+    init_odom_y = subodom.pose.pose.position.y
 
-    # rospy.Subscriber('/odom',Odometry, callback_init_odom)
-
-    # current twist value
-
-
+    
+    pub_odom()    
     while not rospy.is_shutdown():
+        sub_odom()
+        sub_chat()
         currentTime = rospy.Time.now()
 
         # odom_x -= init_odom_x
