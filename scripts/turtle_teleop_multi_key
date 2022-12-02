@@ -92,7 +92,7 @@ flag = False
 opt_x, opt_y, opt_dist = (0.1, 0.1, 0.1)
 odom_x, odom_y, odom_z = (0.0, 0.0, 0.0)
 odom_x_dist, odom_y_dist, odom_z_dist = (0.0, 0.0, 0.0)
-
+init_odom_x, init_odom_x = (0.0, 0.0)
 gap_x, gap_y, gap_z = (0, 0, 0)
 local_x, local_y, local_yaw = (0, 0, 0)
 
