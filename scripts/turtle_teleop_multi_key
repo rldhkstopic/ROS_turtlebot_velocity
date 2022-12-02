@@ -108,8 +108,8 @@ if __name__=="__main__":
     while not rospy.is_shutdown():
         currentTime = rospy.Time.now()
 
-        odom_x -= init_odom_x
-        odom_y -= init_odom_y
+        # odom_x -= init_odom_x
+        # odom_y -= init_odom_y
 
         local_x = float(local_x + cos(local_yaw) * dist)
         local_y = float(local_x + sin(local_yaw) * dist)
