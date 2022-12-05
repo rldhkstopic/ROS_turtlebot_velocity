@@ -3,7 +3,7 @@
 
 from __future__ import print_function
 
-# import tf
+import tf
 import rospy
 import math
 import sys, select, os, time
@@ -30,16 +30,23 @@ def Distance2D(pos_x, pos_y):
     dist = sqrt((pos_x**2)+(pos_y**2))
     return dist
 
-def pub_odom():
-    pub_odom = rospy.Publisher('cmd_vel',Twist, queue_size=3)
-    twist = Twist()
-    twist.linear.x = 0.0; twist.linear.y = 0.0; twist.linear.z = 0.0
-    twist.angular.x = 0.0; twist.angular.y = 0.0; twist.angular.z = 0.0
+def pub_init_odom():
+    pub_odom = rospy.Publisher('odom',Odometry, queue_size=50)
+    odom_broad = tf.TransformBroadcaster()
+    # odom_broad.sendTransform()
 
-    pub_odom.publish(twist)
+    odometry = Odometry()
+    odometry.header.stamp = rospy.Time.now()
+    odometry.header.frame_id = "odom"
+
+    odometry.pose.pose = Pose(Point(0,0,0), Quaternion(0,0,0,0))
+    odometry.child_frame_id = "base_link"
+
+
+    pub_odom.publish(odometry)
 
 def sub_odom():
-    odom = rospy.Subscriber('/odom',Odometry, callback_odom)
+    odom = rospy.Subscriber('/odom', Odometry, callback_odom)
 
 def sub_chat():
     chat =  rospy.Subscriber('chatter', String, callback_chat)
@@ -63,36 +70,81 @@ def callback_odom(data):
     odom_y = data.pose.pose.position.y
     odom_z = to_positive_angle(degrees(e[2]))
 
-    odom_x_dist = abs(odom_x-pre_odom_x)
-    odom_y_dist = abs(odom_y-pre_odom_y)
-    odom_z_dist = abs(odom_z-pre_odom_z)
 
     try:
+        odom_x_dist = abs(odom_x-pre_odom_x)
+        odom_y_dist = abs(odom_y-pre_odom_y)
+        odom_z_dist = abs(odom_z-pre_odom_z)
+
         pre_odom_x, pre_odom_y, pre_odom_z = (odom_x, odom_y, odom_z)
     except:
-        print("No pre")
+        1+1
 
 def callback_chat(data):
     global opt_x, opt_y, opt_dist, opt_dist2
     opt = data.data.split("|")
-    opt_x = float(int(opt[1])*0.01)#float(opt[1])
-    opt_y = float(int(opt[2])*0.01)#float(opt[2])
-    opt_dist = float(opt[4])*0.01#float(opt[4])
+    opt_x = float(int(opt[1])*0.01) * DISTANCE_RATIO#float(opt[1])
+    opt_y = float(int(opt[2])*0.01) * DISTANCE_RATIO#float(opt[2])
+    # opt_dist = float(opt[4])*0.01 * DISTANCE_RATIO#float(opt[4])
+    opt_dist = Distance2D(opt_x, opt_y)
 
-    opt_x *= 0.031
 
-    # print(opt)
-    # print("[OPT] X : {:3d} Y : {:3d} D : {:3f}".format(opt_x, opt_y, opt_dist))
+class Movement():
+    def __init__(self):
+        position = Point()
+        self.tf_listener = tf.TransformListener()
+        self.odom_frame = 'odom'
 
-#  git clone https://github.com/ROBOTIS-GIT/turtlebot3.git
-#  several problems Solving process.
+        try:
+            self.tf_listener.waitForTransform(self.odom_frame, 'base_footprint', rospy.Time(), rospy.Duration(1.0))
+            self.base_frame = 'base_footprint'
+        except (tf.Exception, tf.ConnectivityException, tf.LookupException):
+            try:
+                self.tf_listener.waitForTransform(self.odom_frame, 'base_link', rospy.Time(), rospy.Duration(1.0))
+                self.base_frame = 'base_link'
+            except (tf.Exception, tf.ConnectivityException, tf.LookupException):
+                rospy.loginfo("Cannot find transform between odom and base_link or base_footprint")
+                rospy.signal_shutdown("tf Exception")
+
+        (position, rotation) = self.get_odom()
+        (goal_x, goal_y, goal_z) = self.getkey()
+        goal_z = np.deg2rad(goal_z)
+        goal_distance = sqrt(pow(goal_x - position.x, 2) + pow(goal_y - position.y, 2))
+        distance = goal_distance
+
+        while distance > 0.05:
+            (position, rotation) = self.get_odom()
+            x_start = position.x
+            y_start = position.y
+            path_angle = atan2(goal_y - y_start, goal_x- x_start)
+            distance = sqrt(pow((goal_x - x_start), 2) + pow((goal_y - y_start), 2))
+
+        (position, rotation) = self.get_odom()
+
+        while abs(rotation - goal_z) > 0.05:
+            (position, rotation) = self.get_odom()
+            r.sleep()
+
+    def get_odom(self):
+        try:
+            (trans, rot) = self.tf_listener.lookupTransform(self.odom_frame, self.base_frame, rospy.Time(0))
+            rotation = euler_from_quaternion(rot)
+
+        except (tf.Exception, tf.ConnectivityException, tf.LookupException):
+            rospy.loginfo("TF Exception")
+            return
+
+        return (Point(*trans), rotation[2])
+
+    def get_key(self):
+
 
 dist = 0
 flag = False
 opt_x, opt_y, opt_dist = (0.1, 0.1, 0.1)
 odom_x, odom_y, odom_z = (0.0, 0.0, 0.0)
 odom_x_dist, odom_y_dist, odom_z_dist = (0.0, 0.0, 0.0)
-init_odom_x, init_odom_y = (0.0, 0.0)
+init_odom_x, init_odom_y, init_odom_z = (0.0, 0.0, 0.0)
 gap_x, gap_y, gap_z = (0, 0, 0)
 local_x, local_y, local_yaw = (0, 0, 0)
 
@@ -105,28 +157,30 @@ if __name__=="__main__":
 
     subodom = sub_odom()
 
-    pub_odom()
+    pub_init_odom()
     while not rospy.is_shutdown():
         sub_odom()
         sub_chat()
 
         print(init_odom_x, init_odom_y)
-        if flag == False:
-            init_odom_x = odom_x
-            init_odom_y = odom_y
-            flag = True
+        if odom_x != 0.0 and odom_y != 0.0:
+            if flag == False:
+                init_odom_x = odom_x
+                init_odom_y = odom_y
+                init_odom_z = odom_z
+                flag = True
 
         currentTime = rospy.Time.now()
 
-        local_x = float(local_x + cos(local_yaw) * odom_x_dist * DISTANCE_RATIO)
-        local_y = float(local_x + sin(local_yaw) * odom_x_dist * DISTANCE_RATIO)
+        local_x = float(odom_x + cos(local_yaw) * odom_x_dist)# * DISTANCE_RATIO)
+        local_y = float(odom_x + sin(local_yaw) * odom_x_dist)# * DISTANCE_RATIO)
         local_yaw = float(local_y + odom_y_dist / 0.093)
 
-        gap_x = float(odom_x - local_x)#/odom_x)*100
-        gap_y = float(odom_y - local_y)#/odom_y)*100
+        gap_x = float(odom_x - local_x - init_odom_x)#/odom_x)*100
+        gap_y = float(odom_y - local_y - init_odom_y)#/odom_y)*100
         gap_z = float(odom_z - local_yaw)#/odom_z)*100
 
-        odom_dist = Distance2D(odom_x, odom_y)
+        odom_dist = Distance2D(abs(odom_x)-abs(init_odom_x), abs(odom_y)-abs(init_odom_y))
 
         print("-----------------------------------------------")
         print("OPT|| X : {:.6f}  Y : {:.6f}  dist : {:.6f}".format(opt_x, opt_y, opt_dist))

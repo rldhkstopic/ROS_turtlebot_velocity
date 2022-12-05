@@ -1,92 +1,79 @@
-#!/usr/bin/env python
-#linear drive(translation)
-
-from __future__ import print_function
-
-import rospy
-import math
-import tf
-import sys, select, os, time
-
-from math import cos, sin, degrees, sqrt
-
-from nav_msgs.msg import Odometry
-from std_msgs.msg import String
-from geometry_msgs.msg import Point, Pose, Quaternion, Twist, Vector3
-from tf.transformations import euler_from_quaternion
-
-def to_positive_angle(th):
-    while True:
-        if th < 0:
-            th += 360
-        if th > 0:
-            ans = th % 360
-            return ans
-            break
-
-def Distance2D(pos_x, pos_y):
-    dist = sqrt((pos_x**2)+(pos_y**2))
-    return dist
-
-def pub_cmdv(): # Write turtlebot velocity
-    pub = rospy.Publisher('/counter', Twist, queue_size=3)
-
-def sub_odom():
-    odom = rospy.Subscriber('/odom',Odometry, callback_odom)
-
-def sub_chat():
-    chat =  rospy.Subscriber('chatter', String, callback_chat)
-
-def callback_odom(data):
-    global odom_x, odom_y, odom_z
-    odom_x = data.pose.pose.position.x
-    odom_y = data.pose.pose.position.y
-
-    q1 = data.pose.pose.orientation.x
-    q2 = data.pose.pose.orientation.y
-    q3 = data.pose.pose.orientation.z
-    q4 = data.pose.pose.orientation.w
-    q = (q1, q2, q3, q4)
-
-    e = euler_from_quaternion(q)
-
-    odom_z = degrees(e[2])
-    odom_z = to_positive_angle(odom_z)
-
-def callback_chat(data):
-    global opt_x, opt_y, opt_dist, opt_dist2
-    opt = data.data.split("|")
-    opt_x = opt[1]
-    opt_y = opt[2]
-    opt_dist = opt[4]
-
-    print("[OPT] X : {:3d} Y : {:3d} D : {:3f}".format(opt_x, opt_y, opt_dist))  
-
-
-def listner():
-    rospy.init_node('turtlebot3_teleop', anonymous=True)
-
-
-cur_x, cur_y = (0.0, 0.0)
-if __name__=="__main__":
-    currentTimaae = rospy.Time.now()
-    lastTime = rospy.Time.now()
-
-    sub_odom()
-    sub_chat()
-    while not rospy.is_shutdown():
-        currentTime = rospy.Time.now()
-        
-        local_x = opt_x + cos(opt_y) * dist
-        local_y = opt_x + sin(opt_y) * dist
-        local_z = opt_y + dist / 0.093
-
-        gap_x = (odom_x - local_x)/odom_x * 100
-        gap_y = (odom_y - local_y)/odom_z * 100
-        gap_z = (odom_z - local_z)/odom_z * 100
-
-        print("POSITION GAP|| X : ", gap_x, "Y : ", gap_y, "Z : ", gap_z)
-
-        dist = (currentTime - lastTime).to_sec()
-        lastTime = rospy.Time.now()
-        rate.sleep()
+1 #include <ros/ros.h>
+2 #include <tf/transform_broadcaster.h>
+3 #include <nav_msgs/Odometry.h>
+4
+5 int main(int argc, char** argv){
+6   ros::init(argc, argv, "odometry_publisher");
+7
+8   ros::NodeHandle n;
+9   ros::Publisher odom_pub = n.advertise<nav_msgs::Odometry>("odom", 50);
+10   tf::TransformBroadcaster odom_broadcaster;
+11
+12   double x = 0.0;
+13   double y = 0.0;
+14   double th = 0.0;
+15
+16   double vx = 0.1;
+17   double vy = -0.1;
+18   double vth = 0.1;
+19
+20   ros::Time current_time, last_time;
+21   current_time = ros::Time::now();
+22   last_time = ros::Time::now();
+23
+24   ros::Rate r(1.0);
+25   while(n.ok()){
+26     current_time = ros::Time::now();
+27
+28     //compute odometry in a typical way given the velocities of the robot
+29     double dt = (current_time - last_time).toSec();
+30     double delta_x = (vx * cos(th) - vy * sin(th)) * dt;
+31     double delta_y = (vx * sin(th) + vy * cos(th)) * dt;
+32     double delta_th = vth * dt;
+33
+34     x += delta_x;
+35     y += delta_y;
+36     th += delta_th;
+37
+38     //since all odometry is 6DOF we'll need a quaternion created from yaw
+39     geometry_msgs::Quaternion odom_quat = tf::createQuaternionMsgFromYaw(th);
+40
+41     //first, we'll publish the transform over tf
+42     geometry_msgs::TransformStamped odom_trans;
+43     odom_trans.header.stamp = current_time;
+44     odom_trans.header.frame_id = "odom";
+45     odom_trans.child_frame_id = "base_link";
+46
+47     odom_trans.transform.translation.x = x;
+48     odom_trans.transform.translation.y = y;
+49     odom_trans.transform.translation.z = 0.0;
+50     odom_trans.transform.rotation = odom_quat;
+51
+52     //send the transform
+53     odom_broadcaster.sendTransform(odom_trans);
+54
+55     //next, we'll publish the odometry message over ROS
+56     nav_msgs::Odometry odom;
+57     odom.header.stamp = current_time;
+58     odom.header.frame_id = "odom";
+59
+60     //set the position
+61     odom.pose.pose.position.x = x;
+62     odom.pose.pose.position.y = y;
+63     odom.pose.pose.position.z = 0.0;
+64     odom.pose.pose.orientation = odom_quat;
+65
+66     //set the velocity
+67     odom.child_frame_id = "base_link";
+68     odom.twist.twist.linear.x = vx;
+69     odom.twist.twist.linear.y = vy;
+70     odom.twist.twist.angular.z = vth;
+71
+72     //publish the message
+73     odom_pub.publish(odom);
+74
+75     last_time = current_time;
+76     r.sleep();
+77   }
+78 }
+79
